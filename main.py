@@ -4,7 +4,6 @@ __credits__ = ["Basile Poujol", "Sandrine Bony"]
 __license__ = "CC BY 4.0"
 __version__ = "1.0"
 __maintainer__ = "Basile Poujol"
-__email__ = "basile.poujol@lmd.ipsl.fr"
 __status__ = "Prototype"
 
 # Import python modules

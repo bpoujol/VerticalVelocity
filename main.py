@@ -256,10 +256,30 @@ def compute_advection(exists,les_err_Tadv,les_t,err_Tadv):
                     a,b = np.linalg.lstsq(A, vals[idx2])[0]
                     err_Tadv[y,x] = a
 
+def zenith(lon,lat,year,month,day,hour):
+    '''
+    Solar zenith angle (in radians) determined following NOAA's Global Monitoring Division
+    lon(x,y),lat(x,y): latitude and longitude in degrees
+    year, month, day: integers
+    hour: float
+    '''
+    G = 2*np.pi/365.*(yearday(year,month,day)-1+(hour-12.)/24.)
+    eqtime = 229.18*(0.000075 + 0.001868*np.cos(G) - 0.032077*np.sin(G) -0.014615*np.cos(2*G) - 0.040849*np.sin(2*G) )
+    decl = 0.006918 - 0.399912*np.cos(G) + 0.070257*np.sin(G) - 0.006758*np.cos(2*G) + 0.000907*np.sin(2*G) - 0.002697*np.cos(3*G) + 0.00148*np.sin(3*G)
+    tst = eqtime+4*lon+60*hour
+    ha = np.pi/180*(tst/4.-180)
+    return np.arccos(np.sin(lat*np.pi/180.)*np.sin(decl)+np.cos(lat*np.pi/180.)*np.cos(decl)*np.cos(ha))
+
+def dadu(u):
+    '''
+    Derivative of the dimansionless absorptivity function from Chou (1986)
+    '''
+    return 0.5343*11.5*(1+64*(1-0.59)*(u**0.59))/((1+10.5*u+64*(u**0.59))**2)*np.exp(-11.5*u/(1+10.5*u+64*(u**0.59)))
 
 file = 'a_typical_netcdf_radiance_file.nc'
 lon = np.array(Dataset(file)['longitude'])[j0:j1,i0:i1] #load longitude
 lat = np.array(Dataset(file)['latitude'])[j0:j1,i0:i1] #load latitude
+zeta_sat = np.array(Dataset(file)['View_Zenith'])[j0:j1,i0:i1]*np.pi/180. #satellite zenith angle in degrees
 
 #Limits of the bounding box where we want to compute vertical velocity
 j0,j1 = 800,2900
@@ -269,15 +289,13 @@ i0,i1 = 500,3300
 minutes = ['00','15','30','45']
 
 #Radius of the buffer zone around convective clouds where the retrieval is masked out
-convolve_radius = 50.#km
-dx = 2.5 #km, grid spacing of the satellite image
-kernel = square(round(convolve_radius/dx))
+convolve_radius = 30. #km
 
-#initialize the retrieval
+#Grid spacing of the satellite image
+dx = 2.5 #km
+kernel = square(round(convolve_radius/dx))
+#Dimensions
 ny,nx = lon.shape
-omega = np.zeros((ny,nx))
-omega2 = np.zeros((3,ny,nx))
-err_omega2 = np.zeros((3,ny,nx))
 
 #Name of the water vapor channel to retrieve and its wavelength
 channel = 'WV_073'
@@ -335,7 +353,7 @@ for day in range(1,nbdays[month]+1):
         nc_timestep = hour
         date = str(hour+100*day+10000*month+1000000*year)
         print(date,end='\r') #This prints the date continuously so that one can follow progress fo the algorithm
-        #MAKE SURE TO ADAPT THE FORMATTING OF THESE INPUT DATA FILE NAMES TO THE ONES YOU HAVE
+        #Load the files between hour and hour+1
         files = ['/input_directory/'+str(year)+'/'+date[:4]+'_'+date[4:6]+'_'+date[6:8]+'/my_image_'+date+minute+'.nc' for minute in minutes]
         #Assert all files are actually present
         files_exist = np.array([os.path.exists(f) for f in files]).all()
@@ -346,16 +364,21 @@ for day in range(1,nbdays[month]+1):
             tau_star = 1+eta
             
             #Get brightness temperatures in the atmospheric window and the water vapor channel at initial and final time
-            CTT1 = np.array(Dataset(files[0])['IR_108'][j0:j1,i0:i1])
-            CTT1[CTT1<100]=350
-            CTT2 = np.array(Dataset(files[-1])['IR_108'][j0:j1,i0:i1])
-            CTT2[CTT2<100]=350
+            IR1 = np.array(Dataset(files[0])['IR_103'][j0:j1,i0:i1])
+            IR1[IR1<100]=350
+            FIR1 = np.array(Dataset(files[0])['IR_112'][j0:j1,i0:i1])
+            FIR1[FIR1<100]=350
+            IR2 = np.array(Dataset(files[-1])['IR_103'][j0:j1,i0:i1])
+            IR2[IR2<100]=350
+            FIR2 = np.array(Dataset(files[-1])['IR_112'][j0:j1,i0:i1])
+            FIR2[FIR2<100]=350
             Tb1 = np.array(Dataset(files[0])[channel][j0:j1,i0:i1])
             Tb2 = np.array(Dataset(files[-1])[channel][j0:j1,i0:i1])
-            #Mask regions where the difference is less than 10K
+            #Mask regions where the difference is less than 10K or where there are semitransparent clouds
             #The dilation function adds a buffer zone around the mask
-            to_mask = dilation(np.logical_or(CTT1<Tb1+10,CTT2<Tb2+10),kernel)
-
+            to_mask = np.logical_or(dilation(np.logical_or(IR1<Tb1+10,IR2<Tb2+10),kernel),
+                                    dilation(np.logical_or(IR1-FIR1>2.5,IR2-FIR2>2.5),kernel))
+            
             #Prepare the tables to hold horizontal wind retrievals
             les_U = np.ones((3,ny,nx))*np.nan
             les_V = np.ones((3,ny,nx))*np.nan
@@ -487,15 +510,35 @@ for day in range(1,nbdays[month]+1):
                 delta = g/(Rd*gamma)
                 theta = Tb1*Rv/Lv
                 psi = -dlngammadT(Tb1)*Rv*(Tb1**2)/Lv
-                #Compute and save vertical velocity
-                omega[nc_timestep,:,:] = Lv*pres*( ((2+delta)*theta+1)/((1+delta)*theta+1) + psi/(delta+1)*(1-delta/(1+theta*(delta+1))) + delta*theta )* (dTbdt_small/(Rv*(Tb1**2)*(Lv*Rd/(Rv*Tb1*cp)-1)) + dTbdt_large/(Rv*(Tb1**2)*(Lv*Rd*gamma/(Rv*Tb1*g)-1)))
+                #Compute vertical velocity
+                omega_arr = Lv*pres*( ((2+delta)*theta+1)/((1+delta)*theta+1) + psi/(delta+1)*(1-delta/(1+theta*(delta+1))) + delta*theta )* (dTbdt_small/(Rv*(Tb1**2)*(Lv*Rd/(Rv*Tb1*cp)-1)) + dTbdt_large/(Rv*(Tb1**2)*(Lv*Rd*gamma/(Rv*Tb1*g)-1)))
                 #Remove values exceeding 100hPa/hr
-                omega[nc_timestep][np.abs(omega[nc_timestep])>100]=np.nan
+                omega_arr[np.abs(omega_arr)>100]=np.nan
+
+                #Compute correction for shortwave absorption
+                #Determine the value of kappa (here deduced from figure S1 for the channel 7.3µm)
+                kappa = Rd*pres*tau_star/((100000.)*0.622*1.106)
+                #Constants from Chou (1986)
+                p0 = 300. #hPa
+                u0 = 10. #kg/m2
+                #Solar zenith angle
+                mu = 1./np.cos(zenith(lon,lat,year,month,day,hour+0.5))
+                #Column water vapor from TOA to the emission level
+                CWV = np.abs(mu)*tau_star/kappa*((1+delta)*theta+1)/(1+theta)
+                #Estimate of the spurious vertical velocity due to shortwave absorption
+                delta_omega = np.sign(mu)*((pres/p0)**0.8)*g*tau_star*Rv*np.cos(zeta_sat)/(Lv*kappa*cp*(theta**2))*(((1+(delta+1)*theta)*(1+(.8*delta+1)*theta))/((1+theta)*(1-delta*theta)))*1368.*dadu((CWV/u0)*((pres/p0)**0.8)*np.exp(0.00135*(Tb1-240.)))/u0
+                #Correction of the vertical velocity estimate in hPa/hr
+                omega_arr -= delta_omega*3600./100.
+                
+                #Save output in the netCDF file
+                omega[nc_timestep,:,:] = omega_arr
+                #Compute and save standard error
                 err_omega[nc_timestep,:,:] = Lv*pres*( ((2+delta)*theta+1)/((1+delta)*theta+1) + psi/(delta+1)*(1-delta/(1+theta*(delta+1))) + delta*theta )/(Rv*(Tb1**2)*(Lv*Rd/(Rv*Tb1*cp)-1))*np.sqrt((std_U**2+std_V**2)/(U**2+V**2)*(err_Tadv**2) + err_dTbdt**2)
                 #Save emission level data (temperature and pressure)
                 ta[nc_timestep,:,:] = Tb1
                 pressure[nc_timestep,:,:] = pres
                 #Save timestep
                 time[nc_timestep] = date2num(datetime(year,month,day,hour),time.units)
+                
 #Close the dataset
 ncfile.close()

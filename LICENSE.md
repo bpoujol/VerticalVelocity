@@ -73,21 +73,8 @@ publicity, privacy, or moral rights
 </a>
 may limit how you use the material.
 </p>
-</div>
-<div class="notice-bottom" id="notice-40">
-<h2 class="icon-attach fa-info">
-Notice
-</h2>
 <p>
 This deed highlights only some of the key features and terms of the actual license. It is not a license and has no legal value. You should carefully review all of the terms and conditions of the actual license before using the licensed material.
-</p>
-<p>
-Creative Commons is not a law firm and does not provide legal services. Distributing, displaying, or linking to this deed or the license that it summarizes does not create a lawyer-client or any other relationship.
-</p>
-</div>
-<div>
-<p>
-Creative Commons is the nonprofit behind the open licenses and other legal tools that allow creators to share their work. Our legal tools are free to use.
 </p>
 
 

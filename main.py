@@ -1,5 +1,5 @@
 __author__ = "Basile Poujol"
-__copyright__ = "Copyright 2023, B.Poujol and S.Bony"
+__copyright__ = "Copyright 2024, B.Poujol and S.Bony"
 __credits__ = ["Basile Poujol", "Sandrine Bony"]
 __license__ = "CC BY 4.0"
 __version__ = "1.0"
@@ -135,9 +135,7 @@ cp = 1004.
 
 h = 6.63e-34
 kb = 1.38e-23
-c = 299792458
-C1 = 2*h*(c**2)
-C2 = h*c/kb
+c = 299792458.
 
 
 def find_uv(Tb1,Tb2):
@@ -280,7 +278,7 @@ def zenith(lon,lat,year,month,day,hour):
 
 def dadu(u):
     '''
-    Derivative of the dimansionless absorptivity function from Chou (1986)
+    Derivative of the dimensionless absorptivity function from Chou (1986)
     '''
     return 0.5343*11.5*(1+64*(1-0.59)*(u**0.59))/((1+10.5*u+64*(u**0.59))**2)*np.exp(-11.5*u/(1+10.5*u+64*(u**0.59)))
 
@@ -310,7 +308,7 @@ channel = 'WV_073'
 lam = 7.3e-6
 
 #Half-width of the kernel for the scale separation
-scale_separation = 200 #km
+scale_separation = 1000 #km
 sigma_scale = scale_separation//dx
 
 #Enter here year and month for the retrieval
@@ -342,18 +340,18 @@ for day in range(1,nbdays[month]+1):
     time.units = 'hours since 1800-01-01'
     time.long_name = 'time'
     # Define a 3D variable to hold the retrieval and its standard error
-    omega = ncfile.createVariable('omega',np.float32,('time','lat','lon')) # note: unlimited dimension is leftmost
-    omega.units = 'hPa/hr' # degrees Kelvin
+    omega = ncfile.createVariable('omega',np.float32,('time','lat','lon'))
+    omega.units = 'hPa/hr' 
     omega.standard_name = 'pressure_velocity' # this is a CF standard name
-    err_omega = ncfile.createVariable('err_omega',np.float64,('time','lat','lon')) # note: unlimited dimension is leftmost
-    err_omega.units = 'hPa/hr' # degrees Kelvin
-    err_omega.standard_name = 'uncertainty_on_pressure_velocity' # this is a CF standard name
+    err_omega = ncfile.createVariable('err_omega',np.float64,('time','lat','lon')) 
+    err_omega.units = 'hPa/hr' 
+    err_omega.standard_name = 'uncertainty_on_pressure_velocity' 
     #Define variables to hold metadata: air temperature at the emission level and associated pressure
-    ta = ncfile.createVariable('temp',np.float32,('time','lat','lon')) # note: unlimited dimension is leftmost
-    ta.units = 'K' # degrees Kelvin
+    ta = ncfile.createVariable('temp',np.float32,('time','lat','lon')) 
+    ta.units = 'K'
     ta.standard_name = 'temperature_at_emission_level'
-    pressure = ncfile.createVariable('pres',np.float32,('time','lat','lon')) # note: unlimited dimension is leftmost
-    pressure.units = 'hPa' # degrees Kelvin
+    pressure = ncfile.createVariable('pres',np.float32,('time','lat','lon'))
+    pressure.units = 'hPa'
     pressure.standard_name = 'pressure_at_emission_level'
     lats[:,:]=lat
     lons[:,:]=lon

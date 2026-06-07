@@ -1,6 +1,6 @@
 # Observing clear air vertical motion from space
 
-This repository contains the code in order to produce vertical velocity retrievals from geostationary satellite imagery. The scientific description of the retrieval, as well as its theoretical basis, are described in [REF]. Please refer to this article where the domain of applicability and the limitations of the method are described.
+This repository contains the code in order to produce vertical velocity retrievals from geostationary satellite imagery. The scientific description of the retrieval, as well as its theoretical basis, are described in Poujol and Bony (2024). Please refer to this article where the domain of applicability and the limitations of the method are described.
 
 To run, the algorithm requires :
  - Latitude, longitude and Satellite Zenith angle on the geostationary satellite native grid (the algorithm cannot be run at degraded resolution)
